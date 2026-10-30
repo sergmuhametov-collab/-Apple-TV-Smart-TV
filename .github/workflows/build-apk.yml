@@ -1,0 +1,63 @@
+name: Build APK
+
+# Builds the launcher APK in the cloud (GitHub Actions), so no Android Studio is needed on your computer.
+# Run it: the Actions tab, "Build APK", "Run workflow". The APK is under "Artifacts" on the finished run.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install the SDK platform and build tools
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Unpack the project
+        run: |
+          ZIP=$(ls -S *.zip | head -1)
+          echo "Using $ZIP"
+          python3 - "$ZIP" <<'PY'
+          import os, sys, zipfile
+          z = zipfile.ZipFile(sys.argv[1])
+          for info in z.infolist():
+              name = info.filename.replace("\\", "/")
+              target = os.path.join("work", name)
+              if name.endswith("/"):
+                  os.makedirs(target, exist_ok=True)
+                  continue
+              os.makedirs(os.path.dirname(target), exist_ok=True)
+              with z.open(info) as src, open(target, "wb") as dst:
+                  dst.write(src.read())
+          PY
+          LAUNCHER=$(dirname "$(find work -name gradlew -type f | head -1)")
+          echo "LAUNCHER=$LAUNCHER" >> "$GITHUB_ENV"
+          echo "Project folder: $LAUNCHER"
+
+      - name: Apply the latest launcher changes
+        run: |
+          for s in daynight_switch daynight_first inputs_bar apple_bar; do
+            echo "=== $s"
+            python3 scripts/$s.py "$LAUNCHER" || echo "::warning::$s was not applied (read the lines above)"
+          done
+
+      - name: Build
+        run: |
+          cd "$LAUNCHER"
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --console=plain
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: work/**/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
