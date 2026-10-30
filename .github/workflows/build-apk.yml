@@ -1,7 +1,5 @@
 name: Build APK
 
-# Builds the launcher APK in the cloud (GitHub Actions), so no Android Studio is needed on your computer.
-# Run it: the Actions tab, "Build APK", "Run workflow". The APK is under "Artifacts" on the finished run.
 on:
   workflow_dispatch:
 
@@ -14,17 +12,26 @@ jobs:
 
       - uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: 'temurin'
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
+      # Используем официальный и самый стабильный способ настройки Android SDK
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          log-accepted-android-sdk-licenses: false
 
-      - name: Install the SDK platform and build tools
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+      - name: Install SDK Platform and Build Tools
+        run: |
+          ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-34" "build-tools;34.0.0"
 
       - name: Unpack the project
         run: |
           ZIP=$(ls -S *.zip | head -1)
+          if [ -z "$ZIP" ]; then
+            echo "::error::ZIP file not found in repository root!"
+            exit 1
+          fi
           echo "Using $ZIP"
           python3 - "$ZIP" <<'PY'
           import os, sys, zipfile
@@ -47,10 +54,10 @@ jobs:
         run: |
           for s in daynight_switch daynight_first inputs_bar apple_bar; do
             echo "=== $s"
-            python3 scripts/$s.py "$LAUNCHER" || echo "::warning::$s was not applied (read the lines above)"
+            python3 scripts/$s.py "$LAUNCHER" || echo "::warning::$s was not applied"
           done
 
-      - name: Build
+      - name: Build with Gradle
         run: |
           cd "$LAUNCHER"
           chmod +x gradlew
@@ -61,3 +68,4 @@ jobs:
           name: app-debug-apk
           path: work/**/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
