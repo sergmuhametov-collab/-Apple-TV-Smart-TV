@@ -15,15 +15,10 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # Используем официальный и самый стабильный способ настройки Android SDK
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          log-accepted-android-sdk-licenses: false
-
+      # Мы убрали проблемный setup-android. Используем встроенный в сервер SDK напрямую.
       - name: Install SDK Platform and Build Tools
         run: |
-          ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-34" "build-tools;34.0.0"
+          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-34" "build-tools;34.0.0"
 
       - name: Unpack the project
         run: |
@@ -68,4 +63,3 @@ jobs:
           name: app-debug-apk
           path: work/**/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-
